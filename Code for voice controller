@@ -1,0 +1,49 @@
+# we will be designing a voice controller which will help in controlling the voice in our system. it can be done through 2 mediums either with the help of of media pipe or without mediapipe
+# Import libraires
+
+import cv2
+import numpy as np
+import subprocess
+import os
+
+cap = cv2.VideoCapture(0)
+
+while True:
+    ret, img = cap.read()
+    if not ret:
+        break
+
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)
+    
+    # Clean up the binary image with morphological operations
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+    thresh = cv2.erode(thresh, kernel, iterations=2)
+    thresh = cv2.dilate(thresh, kernel, iterations=2)
+
+    contours, _ = cv2.findContours(
+        thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    if contours:
+        # Filter contours by area to detect only objects, not the entire screen
+        valid_contours = [c for c in contours if 500 < cv2.contourArea(c) < 50000]
+        
+        if valid_contours:
+            c = max(valid_contours, key=cv2.contourArea)
+            x, y, w, h = cv2.boundingRect(c)
+
+            vol = int(np.interp(w, [50, 400], [0, 100]))
+            print(f"Volume: {vol}%, Width: {w}")
+            subprocess.run(["osascript", "-e",
+                            f"set volume output volume {vol}"],
+                           stdout=subprocess.DEVNULL)
+
+            cv2.rectangle(img, (x, y), (x+w, y+h), (0, 255, 0), 2)
+
+    cv2.imshow("Volume Controller", img)
+
+    if cv2.waitKey(1) & 0xFF == ord("q"):
+        break
+
+cap.release()
+cv2.destroyAllWindows()
